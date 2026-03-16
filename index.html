@@ -43,8 +43,8 @@
             border: 3px solid #f3f3f3;
             border-top: 3px solid #059669;
             border-radius: 50%;
-            width: 24px;
-            height: 24px;
+            width: 28px;
+            height: 28px;
             animation: spin 1s linear infinite;
         }
         @keyframes spin {
@@ -55,9 +55,13 @@
 </head>
 <body class="antialiased min-h-screen pb-12">
 
-    <div id="loader" class="fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center gap-4">
+    <!-- 로딩 화면 -->
+    <div id="loader" class="fixed inset-0 bg-white/95 z-50 flex flex-col items-center justify-center gap-4">
         <div class="loading-spinner"></div>
-        <p class="text-stone-500 font-bold animate-pulse">학습 데이터를 연결하고 있습니다...</p>
+        <div class="text-center">
+            <p class="text-stone-800 font-bold text-lg">학습 데이터 연결 중</p>
+            <p id="loader-status" class="text-stone-400 text-sm mt-1">잠시만 기다려 주세요...</p>
+        </div>
     </div>
 
     <div class="max-w-4xl mx-auto px-4 pt-6 space-y-6">
@@ -72,10 +76,11 @@
             </div>
             <button onclick="copyShareLink()" class="flex items-center gap-2 bg-white border border-stone-200 px-4 py-2 rounded-2xl shadow-sm hover:bg-stone-50 transition-colors">
                 <span class="text-sm font-bold text-stone-700">공유하기</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M184,72a32,32,0,1,0-32-32A32,32,0,0,0,184,72Zm0-48a16,16,0,1,1-16,16A16,16,0,0,1,184,24ZM80,160a32,32,0,1,0,32,32A32,32,0,0,0,80,160Zm0,48a16,16,0,1,1,16-16A16,16,0,0,1,80,208ZM231,148.69a15.91,15.91,0,0,0-7.07-10.61L114.34,68.21a32,32,0,0,0-53.51,20.57,32,32,0,0,0,30,42.91h.51l83.61,54.34a32,32,0,0,0,60.19,7.66A16,16,0,0,0,231,148.69ZM80,116a16,16,0,1,1,16-16A16,16,0,0,1,80,116Z"></path></svg>
+                <span>🔗</span>
             </button>
         </header>
 
+        <!-- 핵심 지표 -->
         <section class="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="space-y-2">
                 <div class="flex justify-between items-end">
@@ -109,16 +114,18 @@
             </div>
         </section>
 
+        <!-- 그래프 -->
         <section class="bg-stone-900 p-6 rounded-[2rem] shadow-xl text-white">
-            <h3 class="text-xs font-black uppercase tracking-widest text-stone-400 mb-4">Weekly Learning Trend</h3>
+            <h3 class="text-xs font-black uppercase tracking-widest text-stone-400 mb-4 text-center">Weekly Trend</h3>
             <div class="h-32">
                 <canvas id="weeklyChart"></canvas>
             </div>
         </section>
 
+        <!-- 일일 과제 리스트 -->
         <section class="space-y-4">
             <div class="flex items-center justify-between px-2">
-                <h2 class="font-black text-stone-800 tracking-tight">오늘의 학습 과제</h2>
+                <h2 class="font-black text-stone-800 tracking-tight">학습 체크리스트</h2>
                 <div class="flex items-center gap-2">
                     <button id="filter-all" class="text-[10px] font-bold px-3 py-1 bg-stone-800 text-white rounded-lg">전체</button>
                     <button id="filter-incomplete" class="text-[10px] font-bold px-3 py-1 bg-white border border-stone-200 text-stone-500 rounded-lg">미완료</button>
@@ -129,19 +136,13 @@
     </div>
 
     <div id="copy-toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-stone-800 text-white text-xs font-bold px-6 py-3 rounded-2xl shadow-2xl opacity-0 transition-opacity pointer-events-none z-50">
-        링크가 복사되었습니다! 학생/학부모님께 전달하세요.
+        링크가 복사되었습니다!
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'korean-shared-v1';
 
         const START_DATE = new Date('2026-03-16T00:00:00');
         const TOTAL_READING = 148;
@@ -150,35 +151,23 @@
         const INITIAL_LECTURES = 3;
 
         let scheduleData = [];
-        let user = null;
         let myChart = null;
         let currentFilter = 'all';
+        let db = null;
+        let user = null;
+        let appId = typeof __app_id !== 'undefined' ? __app_id : 'korean-mother-tongue-shared';
 
-        const initAuth = async () => {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
-            }
-        };
-
-        onAuthStateChanged(auth, (u) => {
-            user = u;
-            if (user) startSync();
-        });
-
+        // 기본 데이터 생성기
         function generateSchedule() {
             const data = [];
             let rCount = 0, lCount = 0, lecCount = INITIAL_LECTURES;
             let offset = 0;
-
             while ((rCount < TOTAL_READING || lCount < TOTAL_LITERATURE || lecCount < TOTAL_LECTURES) && offset < 100) {
                 let curr = new Date(START_DATE);
                 curr.setDate(curr.getDate() + offset);
                 let day = curr.getDay();
                 let isWeekend = (day === 0 || day === 6);
                 let isLecDay = [1, 3, 4].includes(day);
-
                 let tasks = [];
                 if (!isWeekend) {
                     if (rCount < TOTAL_READING) {
@@ -198,35 +187,62 @@
                 } else {
                     tasks.push({ id: `wk_${offset}`, name: day === 6 ? '미비 과제 및 복습 📖' : '국어 모의고사 📝', type: 'weekend', amount: 0, done: false });
                 }
-
-                data.push({
-                    id: offset.toString(),
-                    date: curr.toISOString().split('T')[0],
-                    day: ['일','월','화','수','목','금','토'][day],
-                    tasks,
-                    weekNum: Math.floor(offset / 7) + 1
-                });
+                data.push({ id: offset.toString(), date: curr.toISOString().split('T')[0], day: ['일','월','화','수','목','금','토'][day], tasks, weekNum: Math.floor(offset / 7) + 1 });
                 offset++;
             }
             return data;
         }
 
-        const startSync = () => {
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'studyProgress', 'global_status');
-            onSnapshot(docRef, (snap) => {
-                if (snap.exists()) {
-                    scheduleData = snap.data().days;
-                } else {
-                    scheduleData = generateSchedule();
-                    saveData();
-                }
-                updateUI();
-                document.getElementById('loader').style.display = 'none';
-            }, (err) => console.error(err));
+        const finishLoading = () => {
+            updateUI();
+            const loader = document.getElementById('loader');
+            if(loader) loader.style.display = 'none';
+        };
+
+        // 앱 초기화
+        const init = async () => {
+            scheduleData = generateSchedule();
+            
+            // Firebase 설정 확인
+            const configStr = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
+            
+            if (!configStr) {
+                console.warn("Local mode: Database connection unavailable.");
+                finishLoading();
+                return;
+            }
+
+            try {
+                const firebaseConfig = JSON.parse(configStr);
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                db = getFirestore(app);
+
+                await signInAnonymously(auth);
+                onAuthStateChanged(auth, (u) => {
+                    user = u;
+                    if (user) {
+                        // 6세그먼트 규칙 준수: artifacts/{appId}/public/data/studyProgress/global_status
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'studyProgress', 'global_status');
+                        onSnapshot(docRef, (snap) => {
+                            if (snap.exists()) {
+                                scheduleData = snap.data().days;
+                            } else {
+                                setDoc(docRef, { days: scheduleData, lastUpdated: Date.now() });
+                            }
+                            updateUI();
+                            finishLoading();
+                        }, () => finishLoading());
+                    }
+                });
+            } catch (err) {
+                console.error("Init Error:", err);
+                finishLoading();
+            }
         };
 
         const saveData = async () => {
-            if (!user) return;
+            if (!db || !user) return;
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'studyProgress', 'global_status');
             await setDoc(docRef, { days: scheduleData, lastUpdated: Date.now() });
         };
@@ -236,7 +252,8 @@
             const task = day.tasks.find(t => t.id === taskId);
             if (task) {
                 task.done = checked;
-                await saveData();
+                if (db) await saveData();
+                updateUI();
             }
         };
 
@@ -250,6 +267,7 @@
 
         function renderList() {
             const container = document.getElementById('schedule-container');
+            if(!container) return;
             container.innerHTML = '';
             scheduleData.forEach(day => {
                 const total = day.tasks.length;
@@ -287,6 +305,7 @@
             const rPct = Math.round((rd/TOTAL_READING)*100);
             const lPct = Math.round((ld/TOTAL_LITERATURE)*100);
             const ePct = Math.round((led/TOTAL_LECTURES)*100);
+
             document.getElementById('read-pct').textContent = rPct;
             document.getElementById('read-bar').style.width = rPct + '%';
             document.getElementById('read-count').textContent = rd;
@@ -305,23 +324,11 @@
                 const tasks = scheduleData.filter(d => d.weekNum === w).flatMap(d => d.tasks);
                 return Math.round((tasks.filter(t => t.done).length / tasks.length) * 100);
             });
-            if (myChart) {
-                myChart.data.datasets[0].data = data;
-                myChart.update();
-                return;
-            }
+            if (myChart) { myChart.data.datasets[0].data = data; myChart.update(); return; }
             myChart = new Chart(ctx, {
                 type: 'line',
-                data: {
-                    labels: weeks.map(w => w + 'w'),
-                    datasets: [{ data: data, borderColor: '#10b981', borderWidth: 3, pointRadius: 0, tension: 0.4, fill: false }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { display: false, min: 0, max: 100 }, x: { grid: { display: false }, ticks: { color: '#a8a29e', font: { size: 10, weight: 'bold' } } } }
-                }
+                data: { labels: weeks.map(w => w + 'w'), datasets: [{ data: data, borderColor: '#10b981', borderWidth: 3, pointRadius: 0, tension: 0.4, fill: false }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { display: false, min: 0, max: 100 }, x: { grid: { display: false }, ticks: { color: '#ffffff66', font: { size: 10, weight: 'bold' } } } } }
             });
         }
 
@@ -338,19 +345,18 @@
             setTimeout(() => toast.style.opacity = '0', 3000);
         };
 
-        initAuth();
-        document.getElementById('filter-all').addEventListener('click', (e) => {
-            currentFilter = 'all';
-            renderList();
-            e.target.className = 'text-[10px] font-bold px-3 py-1 bg-stone-800 text-white rounded-lg';
+        document.getElementById('filter-all').onclick = () => {
+            currentFilter = 'all'; updateUI();
+            document.getElementById('filter-all').className = 'text-[10px] font-bold px-3 py-1 bg-stone-800 text-white rounded-lg';
             document.getElementById('filter-incomplete').className = 'text-[10px] font-bold px-3 py-1 bg-white border border-stone-200 text-stone-500 rounded-lg';
-        });
-        document.getElementById('filter-incomplete').addEventListener('click', (e) => {
-            currentFilter = 'incomplete';
-            renderList();
-            e.target.className = 'text-[10px] font-bold px-3 py-1 bg-stone-800 text-white rounded-lg';
+        };
+        document.getElementById('filter-incomplete').onclick = () => {
+            currentFilter = 'incomplete'; updateUI();
+            document.getElementById('filter-incomplete').className = 'text-[10px] font-bold px-3 py-1 bg-stone-800 text-white rounded-lg';
             document.getElementById('filter-all').className = 'text-[10px] font-bold px-3 py-1 bg-white border border-stone-200 text-stone-500 rounded-lg';
-        });
+        };
+
+        init();
     </script>
 </body>
 </html>
