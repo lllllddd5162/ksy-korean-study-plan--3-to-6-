@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>국어 학습 완주 대시보드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #fcfaf8;
+            color: #292524;
+        }
+        .task-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .task-card:active {
+            transform: scale(0.98);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e7e5e4;
+            border-radius: 10px;
+        }
+        input[type="checkbox"] {
+            width: 1.5rem;
+            height: 1.5rem;
+            cursor: pointer;
+            accent-color: #059669;
+        }
+        input[type="checkbox"]:checked + label {
+            text-decoration: line-through;
+            color: #a8a29e;
+        }
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #059669;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen pb-12">
+
+    <div id="loader" class="fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center gap-4">
+        <div class="loading-spinner"></div>
+        <p class="text-stone-500 font-bold animate-pulse">학습 데이터를 연결하고 있습니다...</p>
+    </div>
+
+    <div class="max-w-4xl mx-auto px-4 pt-6 space-y-6">
+        
+        <header class="flex justify-between items-start">
+            <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                    <span class="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-tighter">Student Mode</span>
+                    <span id="finish-badge" class="bg-stone-200 text-stone-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Target: --.--</span>
+                </div>
+                <h1 class="text-2xl font-extrabold text-stone-900 tracking-tight">국어 학습 완주 대시보드</h1>
+            </div>
+            <button onclick="copyShareLink()" class="flex items-center gap-2 bg-white border border-stone-200 px-4 py-2 rounded-2xl shadow-sm hover:bg-stone-50 transition-colors">
+                <span class="text-sm font-bold text-stone-700">공유하기</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M184,72a32,32,0,1,0-32-32A32,32,0,0,0,184,72Zm0-48a16,16,0,1,1-16,16A16,16,0,0,1,184,24ZM80,160a32,32,0,1,0,32,32A32,32,0,0,0,80,160Zm0,48a16,16,0,1,1,16-16A16,16,0,0,1,80,208ZM231,148.69a15.91,15.91,0,0,0-7.07-10.61L114.34,68.21a32,32,0,0,0-53.51,20.57,32,32,0,0,0,30,42.91h.51l83.61,54.34a32,32,0,0,0,60.19,7.66A16,16,0,0,0,231,148.69ZM80,116a16,16,0,1,1,16-16A16,16,0,0,1,80,116Z"></path></svg>
+            </button>
+        </header>
+
+        <section class="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="space-y-2">
+                <div class="flex justify-between items-end">
+                    <p class="text-[10px] font-black text-stone-400 uppercase">Reading 독서</p>
+                    <p class="text-xs font-bold text-emerald-600"><span id="read-pct">0</span>%</p>
+                </div>
+                <div class="h-2 bg-stone-50 rounded-full overflow-hidden">
+                    <div id="read-bar" class="h-full bg-emerald-500 transition-all duration-700" style="width: 0%"></div>
+                </div>
+                <p class="text-[10px] text-stone-400 font-bold"><span id="read-count">0</span> / 148 지문</p>
+            </div>
+            <div class="space-y-2">
+                <div class="flex justify-between items-end">
+                    <p class="text-[10px] font-black text-stone-400 uppercase">Literature 문학</p>
+                    <p class="text-xs font-bold text-orange-500"><span id="lit-pct">0</span>%</p>
+                </div>
+                <div class="h-2 bg-stone-50 rounded-full overflow-hidden">
+                    <div id="lit-bar" class="h-full bg-orange-400 transition-all duration-700" style="width: 0%"></div>
+                </div>
+                <p class="text-[10px] text-stone-400 font-bold"><span id="lit-count">0</span> / 176 지문</p>
+            </div>
+            <div class="space-y-2">
+                <div class="flex justify-between items-end">
+                    <p class="text-[10px] font-black text-stone-400 uppercase">Lectures 인강</p>
+                    <p class="text-xs font-bold text-indigo-600"><span id="lec-pct">0</span>%</p>
+                </div>
+                <div class="h-2 bg-stone-50 rounded-full overflow-hidden">
+                    <div id="lec-bar" class="h-full bg-indigo-500 transition-all duration-700" style="width: 0%"></div>
+                </div>
+                <p class="text-[10px] text-stone-400 font-bold"><span id="lec-count">0</span> / 40 강의</p>
+            </div>
+        </section>
+
+        <section class="bg-stone-900 p-6 rounded-[2rem] shadow-xl text-white">
+            <h3 class="text-xs font-black uppercase tracking-widest text-stone-400 mb-4">Weekly Learning Trend</h3>
+            <div class="h-32">
+                <canvas id="weeklyChart"></canvas>
+            </div>
+        </section>
+
+        <section class="space-y-4">
+            <div class="flex items-center justify-between px-2">
+                <h2 class="font-black text-stone-800 tracking-tight">오늘의 학습 과제</h2>
+                <div class="flex items-center gap-2">
+                    <button id="filter-all" class="text-[10px] font-bold px-3 py-1 bg-stone-800 text-white rounded-lg">전체</button>
+                    <button id="filter-incomplete" class="text-[10px] font-bold px-3 py-1 bg-white border border-stone-200 text-stone-500 rounded-lg">미완료</button>
+                </div>
+            </div>
+            <div id="schedule-container" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </section>
+    </div>
+
+    <div id="copy-toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-stone-800 text-white text-xs font-bold px-6 py-3 rounded-2xl shadow-2xl opacity-0 transition-opacity pointer-events-none z-50">
+        링크가 복사되었습니다! 학생/학부모님께 전달하세요.
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'korean-shared-v1';
+
+        const START_DATE = new Date('2026-03-16T00:00:00');
+        const TOTAL_READING = 148;
+        const TOTAL_LITERATURE = 176;
+        const TOTAL_LECTURES = 40;
+        const INITIAL_LECTURES = 3;
+
+        let scheduleData = [];
+        let user = null;
+        let myChart = null;
+        let currentFilter = 'all';
+
+        const initAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        };
+
+        onAuthStateChanged(auth, (u) => {
+            user = u;
+            if (user) startSync();
+        });
+
+        function generateSchedule() {
+            const data = [];
+            let rCount = 0, lCount = 0, lecCount = INITIAL_LECTURES;
+            let offset = 0;
+
+            while ((rCount < TOTAL_READING || lCount < TOTAL_LITERATURE || lecCount < TOTAL_LECTURES) && offset < 100) {
+                let curr = new Date(START_DATE);
+                curr.setDate(curr.getDate() + offset);
+                let day = curr.getDay();
+                let isWeekend = (day === 0 || day === 6);
+                let isLecDay = [1, 3, 4].includes(day);
+
+                let tasks = [];
+                if (!isWeekend) {
+                    if (rCount < TOTAL_READING) {
+                        let amount = Math.min(3, TOTAL_READING - rCount);
+                        tasks.push({ id: `r_${offset}`, name: `마더텅 독서 (${rCount+1}-${rCount+amount})`, type: 'reading', amount, done: false });
+                        rCount += amount;
+                    }
+                    if (lCount < TOTAL_LITERATURE) {
+                        let amount = Math.min(4, TOTAL_LITERATURE - lCount);
+                        tasks.push({ id: `l_${offset}`, name: `마더텅 문학 (${lCount+1}-${lCount+amount})`, type: 'lit', amount, done: false });
+                        lCount += amount;
+                    }
+                    if (isLecDay && lecCount < TOTAL_LECTURES) {
+                        lecCount++;
+                        tasks.push({ id: `lec_${offset}`, name: `인강 수강 (${lecCount}/40) 💻`, type: 'lecture', amount: 1, done: false });
+                    }
+                } else {
+                    tasks.push({ id: `wk_${offset}`, name: day === 6 ? '미비 과제 및 복습 📖' : '국어 모의고사 📝', type: 'weekend', amount: 0, done: false });
+                }
+
+                data.push({
+                    id: offset.toString(),
+                    date: curr.toISOString().split('T')[0],
+                    day: ['일','월','화','수','목','금','토'][day],
+                    tasks,
+                    weekNum: Math.floor(offset / 7) + 1
+                });
+                offset++;
+            }
+            return data;
+        }
+
+        const startSync = () => {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'studyProgress', 'global_status');
+            onSnapshot(docRef, (snap) => {
+                if (snap.exists()) {
+                    scheduleData = snap.data().days;
+                } else {
+                    scheduleData = generateSchedule();
+                    saveData();
+                }
+                updateUI();
+                document.getElementById('loader').style.display = 'none';
+            }, (err) => console.error(err));
+        };
+
+        const saveData = async () => {
+            if (!user) return;
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'studyProgress', 'global_status');
+            await setDoc(docRef, { days: scheduleData, lastUpdated: Date.now() });
+        };
+
+        window.toggleTask = async (dayIdx, taskId, checked) => {
+            const day = scheduleData.find(d => d.id === dayIdx.toString());
+            const task = day.tasks.find(t => t.id === taskId);
+            if (task) {
+                task.done = checked;
+                await saveData();
+            }
+        };
+
+        function updateUI() {
+            renderList();
+            renderStats();
+            renderChart();
+            const last = scheduleData[scheduleData.length - 1].date;
+            document.getElementById('finish-badge').textContent = `Target: ${last.split('-')[1]}.${last.split('-')[2]} Finish`;
+        }
+
+        function renderList() {
+            const container = document.getElementById('schedule-container');
+            container.innerHTML = '';
+            scheduleData.forEach(day => {
+                const total = day.tasks.length;
+                const done = day.tasks.filter(t => t.done).length;
+                if (currentFilter === 'incomplete' && total === done) return;
+                const cardHTML = `
+                    <div class="task-card bg-white p-5 rounded-3xl border ${total === done ? 'border-emerald-200 bg-emerald-50/10' : 'border-stone-100'} shadow-sm">
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-sm font-black text-stone-800">${day.date.split('-')[1]}/${day.date.split('-')[2]} <span class="text-stone-400 font-bold ml-1">${day.day}</span></span>
+                            <span class="text-[10px] font-bold ${total === done ? 'text-emerald-600' : 'text-stone-300'}">${Math.round((done/total)*100)}%</span>
+                        </div>
+                        <div class="space-y-4">
+                            ${day.tasks.map(t => `
+                                <div class="flex items-start gap-3">
+                                    <input type="checkbox" id="${t.id}" ${t.done ? 'checked' : ''} onchange="toggleTask(${day.id}, '${t.id}', this.checked)">
+                                    <label for="${t.id}" class="text-sm font-bold text-stone-600 leading-tight pt-0.5 cursor-pointer">${t.name}</label>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', cardHTML);
+            });
+        }
+
+        function renderStats() {
+            let rd = 0, ld = 0, led = INITIAL_LECTURES;
+            scheduleData.forEach(d => d.tasks.forEach(t => {
+                if (t.done) {
+                    if (t.type === 'reading') rd += t.amount;
+                    if (t.type === 'lit') ld += t.amount;
+                    if (t.type === 'lecture') led += 1;
+                }
+            }));
+            const rPct = Math.round((rd/TOTAL_READING)*100);
+            const lPct = Math.round((ld/TOTAL_LITERATURE)*100);
+            const ePct = Math.round((led/TOTAL_LECTURES)*100);
+            document.getElementById('read-pct').textContent = rPct;
+            document.getElementById('read-bar').style.width = rPct + '%';
+            document.getElementById('read-count').textContent = rd;
+            document.getElementById('lit-pct').textContent = lPct;
+            document.getElementById('lit-bar').style.width = lPct + '%';
+            document.getElementById('lit-count').textContent = ld;
+            document.getElementById('lec-pct').textContent = ePct;
+            document.getElementById('lec-bar').style.width = ePct + '%';
+            document.getElementById('lec-count').textContent = led;
+        }
+
+        function renderChart() {
+            const ctx = document.getElementById('weeklyChart').getContext('2d');
+            const weeks = [...new Set(scheduleData.map(d => d.weekNum))].slice(0, 10);
+            const data = weeks.map(w => {
+                const tasks = scheduleData.filter(d => d.weekNum === w).flatMap(d => d.tasks);
+                return Math.round((tasks.filter(t => t.done).length / tasks.length) * 100);
+            });
+            if (myChart) {
+                myChart.data.datasets[0].data = data;
+                myChart.update();
+                return;
+            }
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: weeks.map(w => w + 'w'),
+                    datasets: [{ data: data, borderColor: '#10b981', borderWidth: 3, pointRadius: 0, tension: 0.4, fill: false }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { display: false, min: 0, max: 100 }, x: { grid: { display: false }, ticks: { color: '#a8a29e', font: { size: 10, weight: 'bold' } } } }
+                }
+            });
+        }
+
+        window.copyShareLink = () => {
+            const url = window.location.href;
+            const tempInput = document.createElement('input');
+            document.body.appendChild(tempInput);
+            tempInput.value = url;
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            const toast = document.getElementById('copy-toast');
+            toast.style.opacity = '1';
+            setTimeout(() => toast.style.opacity = '0', 3000);
+        };
+
+        initAuth();
+        document.getElementById('filter-all').addEventListener('click', (e) => {
+            currentFilter = 'all';
+            renderList();
+            e.target.className = 'text-[10px] font-bold px-3 py-1 bg-stone-800 text-white rounded-lg';
+            document.getElementById('filter-incomplete').className = 'text-[10px] font-bold px-3 py-1 bg-white border border-stone-200 text-stone-500 rounded-lg';
+        });
+        document.getElementById('filter-incomplete').addEventListener('click', (e) => {
+            currentFilter = 'incomplete';
+            renderList();
+            e.target.className = 'text-[10px] font-bold px-3 py-1 bg-stone-800 text-white rounded-lg';
+            document.getElementById('filter-all').className = 'text-[10px] font-bold px-3 py-1 bg-white border border-stone-200 text-stone-500 rounded-lg';
+        });
+    </script>
+</body>
+</html>
